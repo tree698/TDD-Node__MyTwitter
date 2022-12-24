@@ -11,34 +11,51 @@ import { sequelize } from './db/database.js';
 import { TweetController } from './controller/tweet.js';
 import * as tweetRepository from './data/tweet.js';
 
-const app = express();
-
 const corsOption = {
   origin: config.cors.allowedOrigin,
   optionsSuccessStatus: 200,
 };
-app.use(express.json());
-app.use(helmet());
-app.use(cors(corsOption));
-app.use(morgan('tiny'));
 
-app.use(
-  '/tweets',
-  tweetsRouter(new TweetController(tweetRepository, getSocketIO))
-);
-app.use('/auth', authRouter);
+export async function startSever() {
+  const app = express();
+  app.use(express.json());
+  app.use(helmet());
+  app.use(cors(corsOption));
+  app.use(morgan('tiny'));
 
-app.use((req, res, next) => {
-  res.sendStatus(404);
-});
+  app.use(
+    '/tweets',
+    tweetsRouter(new TweetController(tweetRepository, getSocketIO))
+  );
+  app.use('/auth', authRouter);
 
-app.use((error, req, res, next) => {
-  console.error(error);
-  res.sendStatus(500);
-});
+  app.use((req, res, next) => {
+    res.sendStatus(404);
+  });
 
-sequelize.sync().then(() => {
+  app.use((error, req, res, next) => {
+    console.error(error);
+    res.sendStatus(500);
+  });
+
+  await sequelize.sync();
+
   console.log('Server is started....');
   const server = app.listen(config.port);
   initSocket(server);
-});
+
+  return server;
+}
+
+export async function stopSever(server) {
+  return new Promise((resolve, reject) => {
+    server.close(async () => {
+      try {
+        await sequelize.close();
+        resolve();
+      } catch (err) {
+        reject(err);
+      }
+    });
+  });
+}
